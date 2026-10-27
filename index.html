@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Journey of a Packet | Parallax OSI Universe</title>
+  <meta name="description" content="A parallax scrolling journey down the 7 layers of the OSI model.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+/* ================================================
+   The Journey of a Packet  -  Parallax OSI Universe
+   ================================================ */
+:root {
+  --hue: 215;
+  --accent: #00e5ff;
+  --accent2: #a06bff;
+  --text: #e6f1ff;
+  --muted: #8fa6c4;
+  --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  --sans: 'Space Grotesk', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; overflow-x: hidden; }
+body {
+  font-family: var(--sans);
+  color: var(--text);
+  background: hsl(var(--hue) 60% 5%);
+  transition: background 1.2s ease;
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* Fixed canvas with drifting network nodes */
+#bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+
+/* Everything else sits above the canvas */
+.hero, main, .outro { position: relative; z-index: 1; }
+
+#progress {
+  position: fixed; top: 0; left: 0; height: 3px; width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  box-shadow: 0 0 12px var(--accent);
+  z-index: 100;
+}
+
+/* ---------- Side nav ---------- */
+#osi-nav {
+  position: fixed; right: 18px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 10px; z-index: 90;
+}
+#osi-nav a {
+  display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+  color: var(--muted); text-decoration: none; font: 12px var(--mono);
+}
+#osi-nav a span { opacity: 0; transform: translateX(8px); transition: .3s; }
+#osi-nav a:hover span, #osi-nav a.active span { opacity: 1; transform: none; }
+#osi-nav a i {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid var(--muted); transition: .3s; display: block;
+}
+#osi-nav a.active { color: var(--accent); }
+#osi-nav a.active i { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 12px var(--accent); transform: scale(1.3); }
+
+/* ---------- HUD ---------- */
+#hud {
+  position: fixed; left: 50%; bottom: 18px; transform: translate(-50%, 140%);
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 16px; border-radius: 14px;
+  background: rgba(8, 14, 28, .78); backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 229, 255, .3);
+  z-index: 95; transition: transform .6s cubic-bezier(.2, .8, .2, 1);
+  max-width: calc(100vw - 24px);
+}
+#hud.show { transform: translate(-50%, 0); }
+#hud-pdu { font: 700 12px var(--mono); color: var(--accent); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+#hud-stack { display: flex; gap: 4px; flex-wrap: nowrap; overflow: hidden; }
+#hud-stack b {
+  font: 700 11px var(--mono); padding: 4px 8px; border-radius: 6px; color: #04101c;
+  animation: pop .45s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+#hud-stack b.ETH { background: #ff9d4d; }
+#hud-stack b.IP { background: #7cf29a; }
+#hud-stack b.TCP { background: #ffe066; }
+#hud-stack b.DATA { background: var(--accent); }
+#hud-stack b.FCS { background: #ff9d4d; }
+#hud-stack b.bit { background: transparent; color: var(--accent); padding: 4px 3px; }
+@keyframes pop { from { transform: scale(.3) translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---------- Parallax helpers ---------- */
+[data-speed], .float { will-change: transform; }
+
+/* ---------- HERO ---------- */
+.hero {
+  height: 100vh; min-height: 640px; overflow: hidden;
+  display: grid; place-items: center; text-align: center;
+}
+.hl { position: absolute; inset: 0; pointer-events: none; }
+
+.sun {
+  inset: auto; left: 50%; top: 18%;
+  width: min(60vw, 560px); aspect-ratio: 1; margin-left: calc(min(60vw, 560px) / -2);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, .35), rgba(160, 107, 255, .18) 45%, transparent 70%);
+  filter: blur(6px);
+}
+.sun::after {
+  content: ""; position: absolute; inset: 22%; border-radius: 50%;
+  border: 1px solid rgba(0, 229, 255, .5);
+  box-shadow: 0 0 60px rgba(0, 229, 255, .35), inset 0 0 60px rgba(160, 107, 255, .3);
+  animation: spin 40s linear infinite;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 14px, rgba(0, 229, 255, .12) 14px 15px),
+    repeating-linear-gradient(90deg, transparent 0 14px, rgba(0, 229, 255, .12) 14px 15px);
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.grid-floor { inset: auto 0 0 0; height: 55%; }
+/* the 3D tilt lives on ::before because JS owns the element's own transform */
+.grid-floor::before {
+  content: ""; position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 229, 255, .35) 0 1px, transparent 1px 80px),
+    repeating-linear-gradient(0deg, rgba(0, 229, 255, .35) 0 1px, transparent 1px 60px);
+  transform: perspective(500px) rotateX(62deg); transform-origin: bottom;
+  mask-image: linear-gradient(to top, #000 10%, transparent 90%);
+  -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 90%);
+  animation: gridMove 3s linear infinite;
+}
+@keyframes gridMove { to { background-position: 0 0, 0 60px; } }
+
+/* Server-rack skyline */
+.racks { inset: auto 0 0 0; height: 60%; }
+.rack {
+  position: absolute; bottom: 0; border-radius: 4px 4px 0 0;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 9px, rgba(0, 229, 255, .22) 9px 10px),
+    linear-gradient(#0b1a30, #060d1a);
+  border: 1px solid rgba(0, 229, 255, .18); border-bottom: 0;
+}
+.racks-near .rack { background:
+    repeating-linear-gradient(0deg, transparent 0 11px, rgba(124, 242, 154, .25) 11px 12px),
+    linear-gradient(#08142a, #040a14); }
+.rack::before {
+  content: ""; position: absolute; left: 10%; top: 8px; width: 4px; height: 4px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 8px 0 #7cf29a, 0 16px 0 var(--accent), 0 24px 0 #ffe066, 0 32px 0 var(--accent);
+  animation: blink 1.6s steps(2) infinite;
+}
+@keyframes blink { 50% { opacity: .25; } }
+
+.hero-content { position: relative; z-index: 5; padding: 0 20px; }
+.tag { font: 12px var(--mono); letter-spacing: .25em; text-transform: uppercase; color: var(--accent); margin-bottom: 18px; }
+.hero h1 {
+  font-size: clamp(2.6rem, 9vw, 7rem); line-height: .95; font-weight: 700; letter-spacing: -.03em;
+  text-shadow: 0 0 40px rgba(0, 229, 255, .35);
+}
+.hero h1 span {
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.sub { max-width: 560px; margin: 22px auto 0; color: var(--muted); font-size: clamp(1rem, 2vw, 1.25rem); }
+.cue { margin-top: 40px; font: 11px var(--mono); letter-spacing: .3em; text-transform: uppercase; color: var(--muted); display: grid; gap: 10px; justify-items: center; }
+.cue span { width: 2px; height: 46px; background: linear-gradient(var(--accent), transparent); animation: drip 1.8s ease-in-out infinite; }
+@keyframes drip { 0% { transform: scaleY(0); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } 51% { transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
+
+/* ---------- Floating icons ---------- */
+.floaters { position: absolute; inset: 0; pointer-events: none; }
+.float {
+  position: absolute; fill: none; stroke: var(--accent); stroke-width: 1.2;
+  stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 0 8px rgba(0, 229, 255, .6));
+}
+
+/* ---------- Scenes ---------- */
+.scene { position: relative; min-height: 120vh; display: flex; align-items: center; padding: 14vh 6vw; }
+.scene.left { justify-content: flex-start; }
+.scene.right { justify-content: flex-end; }
+
+.big-num {
+  position: absolute; top: 50%; margin-top: -.5em; line-height: 1;
+  font: 700 clamp(14rem, 42vw, 36rem) var(--sans);
+  color: transparent; -webkit-text-stroke: 2px rgba(0, 229, 255, .16);
+  user-select: none; pointer-events: none;
+}
+.left .big-num { right: 4vw; }
+.right .big-num { left: 4vw; }
+
+.card {
+  position: relative; z-index: 3; width: min(560px, 100%);
+  padding: clamp(22px, 4vw, 38px); border-radius: 22px;
+  background: linear-gradient(145deg, rgba(14, 26, 48, .82), rgba(8, 14, 28, .72));
+  border: 1px solid rgba(0, 229, 255, .25);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255, 255, 255, .03) inset;
+  opacity: 0; filter: blur(8px);
+  transition: opacity .9s ease, filter .9s ease;
+}
+.scene.in .card { opacity: 1; filter: none; }
+.kicker { font: 12px var(--mono); letter-spacing: .15em; text-transform: uppercase; color: var(--accent); }
+.card h2 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.05; margin: 8px 0 14px; letter-spacing: -.02em; }
+.card p { color: #bdd0e8; }
+.chips { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.chips li { font: 12px var(--mono); padding: 5px 11px; border-radius: 99px; border: 1px solid rgba(160, 107, 255, .5); color: #d6c4ff; background: rgba(160, 107, 255, .1); }
+
+/* Terminal */
+.term { margin-top: 18px; border-radius: 12px; overflow: hidden; background: #040a14; border: 1px solid rgba(124, 242, 154, .25); }
+.term .bar { display: flex; gap: 6px; padding: 8px 12px; background: #0a1628; }
+.term .bar i { width: 9px; height: 9px; border-radius: 50%; background: #ff5f57; }
+.term .bar i:nth-child(2) { background: #febc2e; }
+.term .bar i:nth-child(3) { background: #28c840; }
+.term pre { padding: 14px; font: 13px/1.7 var(--mono); color: #b9ffcb; white-space: pre-wrap; word-break: break-word; }
+.term pre b { color: var(--accent); }
+.term pre .ok { color: #7cf29a; }
+.term pre span { display: block; opacity: 0; transform: translateX(-8px); }
+.scene.in .term pre span { opacity: 1; transform: none; transition: opacity .4s, transform .4s; transition-delay: calc(var(--i) * .45s + .6s); }
+.term pre::after { content: "\2588"; color: var(--accent); animation: blink 1s steps(2) infinite; }
+
+/* ---------- Outro ---------- */
+.outro { min-height: 110vh; justify-content: center; text-align: center; }
+.outro-inner { position: relative; z-index: 3; max-width: 640px; opacity: 0; transition: opacity 1s; }
+.outro.in .outro-inner { opacity: 1; }
+.outro h2 { font-size: clamp(2.4rem, 7vw, 4.6rem); letter-spacing: -.03em; margin: 8px 0 14px; background: linear-gradient(90deg, #7cf29a, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.big-icon { width: 90px; height: 90px; fill: none; stroke: #7cf29a; stroke-width: 1.2; stroke-linejoin: round; filter: drop-shadow(0 0 16px #7cf29a); animation: bob 3s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-12px) rotate(6deg); } }
+.outro .term { text-align: left; margin: 26px 0; }
+.stats { list-style: none; display: flex; justify-content: center; gap: 36px; margin: 10px 0 34px; color: var(--muted); font: 12px var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+.stats strong { display: block; font: 700 2.6rem var(--sans); color: var(--text); letter-spacing: 0; }
+#replay {
+  font: 700 14px var(--mono); padding: 14px 28px; border-radius: 99px; cursor: pointer;
+  color: #04101c; border: 0; background: linear-gradient(90deg, var(--accent), var(--accent2));
+  box-shadow: 0 0 30px rgba(0, 229, 255, .4); transition: transform .2s, box-shadow .2s;
+}
+#replay:hover { transform: translateY(-3px) scale(1.04); box-shadow: 0 0 46px rgba(0, 229, 255, .7); }
+footer { margin-top: 54px; font: 14px var(--mono); color: var(--accent); text-align: center; width: 100%; }
+footer em { color: var(--accent); font-style: normal; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 720px) {
+  #osi-nav { right: 8px; gap: 8px; }
+  #osi-nav a span { display: none; }
+  .scene { padding: 12vh 5vw; }
+  .scene.left, .scene.right { justify-content: center; }
+  .card { padding: 20px; }
+  #hud { gap: 8px; padding: 8px 10px; }
+  #hud-pdu { font-size: 10px; }
+  .big-num { opacity: .6; }
+}
+
+/* ---------- Accessibility ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; }
+  .card, .outro-inner { opacity: 1; filter: none; }
+  .term pre span { opacity: 1; transform: none; }
+}
+
+</style>
+</head>
+<body>
+
+  <!-- Icon library (used with <use href="#i-name">) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+      <symbol id="i-router" viewBox="0 0 24 24"><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 17h.01M11 17h.01M8 10a6 6 0 0 1 8 0M5.5 7.5a10 10 0 0 1 13 0"/></symbol>
+      <symbol id="i-switch" viewBox="0 0 24 24"><rect x="2" y="9" width="20" height="8" rx="1.5"/><path d="M6 13h.01M9 13h.01M12 13h.01M15 13h.01M18 13h.01M6 9V6M12 9V6M18 9V6"/></symbol>
+      <symbol id="i-server" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="7" rx="1.5"/><rect x="4" y="14" width="16" height="7" rx="1.5"/><path d="M8 6.5h.01M8 17.5h.01"/></symbol>
+      <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.5-7.97A6 6 0 0 1 18 9.5 4.3 4.3 0 0 1 17.5 18z"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="3.5"/><path d="M11.5 12H21M18 12v3M15 12v2"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+      <symbol id="i-antenna" viewBox="0 0 24 24"><path d="M12 12v9M8 21h8"/><circle cx="12" cy="10" r="2"/><path d="M7.5 5.5a6.5 6.5 0 0 0 0 9M16.5 5.5a6.5 6.5 0 0 1 0 9M4.5 3a10.5 10.5 0 0 0 0 14M19.5 3a10.5 10.5 0 0 1 0 14"/></symbol>
+      <symbol id="i-plug" viewBox="0 0 24 24"><path d="M8 3v5M16 3v5M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v3"/></symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M3 7l9 6 9-6"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+      <symbol id="i-packet" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></symbol>
+    </defs>
+  </svg>
+
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <div id="progress"></div>
+
+  <!-- Side navigation (built by script.js) -->
+  <nav id="osi-nav" aria-label="OSI layers"></nav>
+
+  <!-- HUD: shows how the packet is wrapped (encapsulated) at each layer -->
+  <aside id="hud" aria-live="polite">
+    <span id="hud-pdu">PDU</span>
+    <div id="hud-stack"></div>
+  </aside>
+
+  <!-- ============ HERO ============ -->
+  <header class="hero" id="hero">
+    <div class="hl sun" data-speed="0.55"></div>
+    <div class="hl racks racks-far" data-speed="0.38" id="racks-far"></div>
+    <div class="hl grid-floor" data-speed="0.22"></div>
+    <div class="hl floaters" id="hero-floaters"></div>
+    <div class="hl racks racks-near" data-speed="0.12" id="racks-near"></div>
+
+    <div class="hero-content" data-speed="-0.15" data-fade="1">
+      <p class="tag">Network Engineering &middot; Parallax Task 2</p>
+      <h1>The Journey<br><span>of a Packet</span></h1>
+      <p class="sub">Scroll to travel down the OSI model, from your browser all the way to the wire.</p>
+      <div class="cue"><span></span>scroll</div>
+    </div>
+  </header>
+
+  <!-- ============ SCENES (7 layers, generated by the script below) ============ -->
+  <main id="scenes"></main>
+
+  <!-- ============ OUTRO ============ -->
+  <section class="scene outro" id="outro" data-hue="170">
+    <div class="floaters"></div>
+    <div class="outro-inner" data-speed="-0.05">
+      <svg class="big-icon"><use href="#i-packet"/></svg>
+      <h2>Packet delivered.</h2>
+      <p>At the destination the same trip happens in reverse: bits become a frame, the frame a packet, the packet a segment, and finally your data reaches the application.</p>
+      <div class="term">
+        <div class="bar"><i></i><i></i><i></i></div>
+        <pre><span style="--i:0"><b>$</b> ping -c 1 203.0.113.10</span>
+<span style="--i:1">64 bytes from 203.0.113.10: icmp_seq=1 ttl=57 time=12.4 ms</span>
+<span style="--i:2" class="ok">1 packets transmitted, 1 received, 0% packet loss</span></pre>
+      </div>
+      <ul class="stats">
+        <li><strong>7</strong>layers</li>
+        <li><strong>4</strong>PDU names</li>
+        <li><strong>1</strong>connection</li>
+      </ul>
+      <button id="replay" type="button">Send another packet &uarr;</button>
+      <footer>Ogugua Goodness</footer>
+    </div>
+  </section>
+
+  <script>
+/* =====================================================
+   The Journey of a Packet  -  parallax engine + content
+   -----------------------------------------------------
+   HOW THE PARALLAX WORKS
+   Every element with a data-speed value gets moved a bit
+   differently from the normal scroll:
+     speed > 0  -> moves slower than the page  (looks FAR away)
+     speed < 0  -> moves faster than the page  (looks CLOSE)
+     speed = 0  -> scrolls normally
+   For each element we measure how far its parent section
+   is from the middle of the screen (d) and apply
+   translateY = d * speed. Different speeds = depth.
+   ===================================================== */
+(() => {
+  'use strict';
+
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  // Seeded random so the layout is the same on every visit
+  function rng(seed) {
+    return () => {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* ---------------- Content: the 7 OSI layers ---------------- */
+  const SCENES = [
+    { n: 7, name: 'Application', pdu: 'Data', hue: 215,
+      protocols: ['HTTP/S', 'DNS', 'SMTP', 'FTP', 'SSH'],
+      blurb: 'It starts here. You type a URL and press Enter. The browser creates an HTTP request, and DNS turns the name into an IP address. This is the only layer you actually see.',
+      cmd: 'curl -I https://example.com', out: ['HTTP/2 200', 'content-type: text/html'],
+      icons: ['laptop', 'globe', 'mail', 'server'] },
+    { n: 6, name: 'Presentation', pdu: 'Data', hue: 245,
+      protocols: ['TLS', 'SSL', 'JPEG', 'ASCII/UTF-8'],
+      blurb: 'The data is translated into a common format, compressed and, most importantly, encrypted. TLS makes sure nobody on the path can read your request.',
+      cmd: 'openssl s_client -connect example.com:443', out: ['TLSv1.3, Cipher: TLS_AES_256_GCM_SHA384', 'Verify return code: 0 (ok)'],
+      icons: ['lock', 'key', 'shield', 'lock'] },
+    { n: 5, name: 'Session', pdu: 'Data', hue: 270,
+      protocols: ['NetBIOS', 'RPC', 'PPTP', 'Session tokens'],
+      blurb: 'Sessions are opened, kept alive and closed here. Think of it as the conversation manager: who is talking, checkpoints, and reconnecting after a drop.',
+      cmd: 'ss -tn state established', out: ['ESTAB  10.0.0.5:51544  203.0.113.10:443'],
+      icons: ['link', 'link', 'laptop', 'server'] },
+    { n: 4, name: 'Transport', pdu: 'Segment', hue: 190,
+      protocols: ['TCP', 'UDP', 'Ports', 'Flow control'],
+      blurb: 'Data is cut into segments and labelled with source and destination ports. TCP adds sequence numbers, a three-way handshake (SYN, SYN-ACK, ACK) and retransmission so nothing gets lost.',
+      cmd: 'nmap -p 443 203.0.113.10', out: ['PORT    STATE SERVICE', '443/tcp open  https'],
+      icons: ['packet', 'packet', 'packet', 'shield'] },
+    { n: 3, name: 'Network', pdu: 'Packet', hue: 150,
+      protocols: ['IPv4', 'IPv6', 'ICMP', 'OSPF', 'BGP'],
+      blurb: 'Each segment gets an IP header with source and destination addresses. Routers read the destination and choose the next hop, so your packet crosses networks it has never heard of.',
+      cmd: 'traceroute 203.0.113.10', out: [' 1  192.168.1.1   1.2 ms', ' 2  10.20.0.1     4.8 ms', ' 3  198.51.100.9  9.7 ms', ' 4  203.0.113.10 12.4 ms'],
+      icons: ['router', 'cloud', 'router', 'globe', 'cloud'] },
+    { n: 2, name: 'Data Link', pdu: 'Frame', hue: 30,
+      protocols: ['Ethernet', 'MAC', 'VLAN 802.1Q', 'ARP', 'STP'],
+      blurb: 'The packet is wrapped in a frame with MAC addresses for the very next hop only. Switches learn which MAC lives on which port and forward the frame, and the FCS trailer detects corruption.',
+      cmd: 'show mac address-table', out: ['Vlan  Mac Address     Type     Port', '  10  aabb.cc00.0100  DYNAMIC  Gi0/1'],
+      icons: ['switch', 'switch', 'plug', 'router'] },
+    { n: 1, name: 'Physical', pdu: 'Bits', hue: 330,
+      protocols: ['Copper', 'Fiber', 'Wi-Fi', '1000BASE-T', 'Signals'],
+      blurb: 'Finally, everything becomes 1s and 0s: voltage on copper, light pulses in fiber, or radio waves. Nothing is "understood" here, bits are simply moved from one device to the next.',
+      cmd: 'show interfaces gi0/1', out: ['GigabitEthernet0/1 is up, line protocol is up', 'Full-duplex, 1000Mb/s, media type is 10/100/1000BaseTX'],
+      icons: ['antenna', 'plug', 'antenna', 'plug', 'switch'] }
+  ];
+
+  // What the packet looks like at each stage (shown in the bottom HUD)
+  const STACKS = [
+    ['DATA'], ['DATA'], ['DATA'],
+    ['TCP', 'DATA'],
+    ['IP', 'TCP', 'DATA'],
+    ['ETH', 'IP', 'TCP', 'DATA', 'FCS'],
+    '0 1 1 0 1 0 0 1 1 1 0 1'.split(' ')
+  ];
+
+  /* ---------------- Build the 7 scenes ---------------- */
+  const main = document.getElementById('scenes');
+  const nav = document.getElementById('osi-nav');
+
+  SCENES.forEach((s, i) => {
+    const sec = document.createElement('section');
+    sec.className = 'scene ' + (i % 2 ? 'right' : 'left');
+    sec.id = 'layer' + s.n;
+    sec.dataset.index = i;
+    sec.dataset.hue = s.hue;
+
+    const lines = [`<span style="--i:0"><b>${s.n === 2 || s.n === 1 ? 'Switch#' : '$'}</b> ${s.cmd}</span>`]
+      .concat(s.out.map((o, k) => `<span style="--i:${k + 1}">${o}</span>`)).join('\n');
+
+    sec.innerHTML = `
+      <div class="big-num" data-speed="0.4">${s.n}</div>
+      <div class="floaters"></div>
+      <article class="card" data-speed="-0.05">
+        <p class="kicker">Layer ${s.n} &middot; PDU: ${s.pdu}</p>
+        <h2>${s.name}</h2>
+        <p>${s.blurb}</p>
+        <ul class="chips">${s.protocols.map(p => `<li>${p}</li>`).join('')}</ul>
+        <div class="term"><div class="bar"><i></i><i></i><i></i></div><pre>${lines}</pre></div>
+      </article>`;
+    main.appendChild(sec);
+
+    // Side navigation dot
+    const a = document.createElement('a');
+    a.href = '#layer' + s.n;
+    a.innerHTML = `<span>L${s.n} ${s.name}</span><i></i>`;
+    nav.appendChild(a);
+  });
+
+  /* ---------------- Floating icons (the parallax layers) ---------------- */
+  const NS = 'http://www.w3.org/2000/svg';
+  function spawnFloaters(container, icons, count, seed) {
+    const r = rng(seed);
+    for (let k = 0; k < count; k++) {
+      const depth = r();                       // 0 = far, 1 = near
+      const size = 26 + depth * 90;            // near objects are bigger
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.classList.add('float');
+      svg.innerHTML = `<use href="#i-${icons[k % icons.length]}"/>`;
+      svg.style.left = (r() * 92) + '%';
+      svg.style.top = (r() * 90) + '%';
+      svg.style.width = svg.style.height = size + 'px';
+      svg.style.opacity = (0.18 + depth * 0.5).toFixed(2);
+      if (depth < 0.3) svg.style.filter = 'blur(1.5px) drop-shadow(0 0 8px rgba(0,229,255,.5))';
+      svg.dataset.speed = (0.5 - depth * 0.95).toFixed(2);   // far = +0.5, near = -0.45
+      svg.dataset.rot = Math.round((r() - .5) * 50);
+      svg.dataset.spin = ((r() - .5) * 0.05).toFixed(3);
+      svg.dataset.mouse = (depth * 22).toFixed(1);
+      container.appendChild(svg);
+    }
+  }
+
+  document.querySelectorAll('.scene').forEach((sec, i) => {
+    const icons = SCENES[i] ? SCENES[i].icons : ['packet', 'globe', 'router', 'cloud'];
+    spawnFloaters(sec.querySelector('.floaters'), icons, 10, 100 + i * 17);
+  });
+  spawnFloaters(document.getElementById('hero-floaters'),
+    ['router', 'cloud', 'server', 'globe', 'switch', 'laptop', 'shield', 'antenna'], 14, 7);
+
+  /* ---------------- Server-rack skyline in the hero ---------------- */
+  function buildRacks(el, count, seed, minH, maxH) {
+    const r = rng(seed);
+    for (let k = 0; k < count; k++) {
+      const d = document.createElement('div');
+      d.className = 'rack';
+      d.style.left = (k / count * 100 + r() * 2) + '%';
+      d.style.width = (100 / count * 0.8) + '%';
+      d.style.height = (minH + r() * (maxH - minH)) + '%';
+      d.style.setProperty('animation-delay', (r() * 2) + 's');
+      el.appendChild(d);
+    }
+  }
+  buildRacks(document.getElementById('racks-far'), 16, 3, 25, 70);
+  buildRacks(document.getElementById('racks-near'), 9, 11, 14, 38);
+
+  /* ---------------- Parallax engine ---------------- */
+  // Group all [data-speed] elements by the section they live in
+  const groups = [...document.querySelectorAll('.hero, .scene')].map(section => ({
+    section,
+    items: [...section.querySelectorAll('[data-speed]')].map(el => ({
+      el,
+      speed: parseFloat(el.dataset.speed),
+      rot: parseFloat(el.dataset.rot || 0),
+      spin: parseFloat(el.dataset.spin || 0),
+      mouse: parseFloat(el.dataset.mouse || 0),
+      fade: el.dataset.fade === '1'
+    }))
+  }));
+
+  let mx = 0, my = 0, tx = 0, ty = 0;           // smoothed + target mouse offsets (-1 .. 1)
+  addEventListener('pointermove', e => {
+    tx = (e.clientX / innerWidth - .5) * 2;
+    ty = (e.clientY / innerHeight - .5) * 2;
+  });
+
+  const progress = document.getElementById('progress');
+
+  function updateParallax() {
+    const vh = innerHeight;
+    mx += (tx - mx) * 0.06;
+    my += (ty - my) * 0.06;
+
+    groups.forEach(g => {
+      const r = g.section.getBoundingClientRect();
+      if (r.bottom < -500 || r.top > vh + 500) return;    // skip sections far off screen
+      const d = r.top + r.height / 2 - vh / 2;
+      g.items.forEach(it => {
+        const y = reduceMotion ? 0 : d * it.speed;
+        const x = reduceMotion ? 0 : mx * it.mouse;
+        const yy = y + (reduceMotion ? 0 : my * it.mouse * .6);
+        it.el.style.transform =
+          `translate3d(${x.toFixed(1)}px, ${yy.toFixed(1)}px, 0) rotate(${(it.rot + d * it.spin).toFixed(1)}deg)`;
+        if (it.fade) it.el.style.opacity = clamp(1 - (-d) / (vh * 0.7), 0, 1);
+      });
+    });
+
+    const max = document.documentElement.scrollHeight - vh;
+    progress.style.width = (scrollY / max * 100) + '%';
+  }
+
+  /* ---------------- Active layer: reveal, HUD, nav, colour ---------------- */
+  const hud = document.getElementById('hud');
+  const hudPdu = document.getElementById('hud-pdu');
+  const hudStack = document.getElementById('hud-stack');
+  const navLinks = [...nav.children];
+  let activeIdx = -2;
+
+  function setActive(idx, sec) {
+    if (idx === activeIdx) return;
+    activeIdx = idx;
+    document.documentElement.style.setProperty('--hue', sec.dataset.hue);
+    navLinks.forEach((a, k) => a.classList.toggle('active', k === idx));
+
+    if (idx >= 0 && idx < SCENES.length) {
+      hud.classList.add('show');
+      hudPdu.textContent = SCENES[idx].pdu;
+      hudStack.innerHTML = STACKS[idx]
+        .map((t, k) => `<b class="${idx === 6 ? 'bit' : t}" style="animation-delay:${k * 70}ms">${t}</b>`).join('');
+    } else {
+      hud.classList.remove('show');
+    }
+  }
+
+  const allScenes = [...document.querySelectorAll('.scene')];
+  // Card reveal animation
+  const reveal = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) e.target.classList.add('in');
+  }), { threshold: 0.25 });
+  // Which scene is in the middle of the screen?
+  const focus = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) {
+      const sec = e.target;
+      setActive(sec.id === 'outro' ? SCENES.length : parseInt(sec.dataset.index, 10), sec);
+    }
+  }), { rootMargin: '-45% 0px -45% 0px' });
+  allScenes.forEach(s => { reveal.observe(s); focus.observe(s); });
+
+  // Back to hero -> hide HUD, reset colour
+  new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { activeIdx = -2; setActive(-1, { dataset: { hue: 215 } }); }
+  }), { threshold: 0.6 }).observe(document.getElementById('hero'));
+
+  document.getElementById('replay').addEventListener('click', () =>
+    scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' }));
+
+  /* ---------------- Canvas: drifting network graph ---------------- */
+  const cv = document.getElementById('bg');
+  const ctx = cv.getContext('2d');
+  let W = 0, H = 0, dpr = 1, nodes = [], pulses = [];
+
+  function resize() {
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    W = cv.width = innerWidth * dpr;
+    H = cv.height = innerHeight * dpr;
+    const count = clamp(Math.round(innerWidth / 16), 30, 90);
+    const r = rng(42);
+    nodes = Array.from({ length: count }, () => ({
+      x: r() * W, y: r() * H, z: 0.2 + r() * 0.8,
+      vx: (r() - .5) * 0.25 * dpr, vy: (r() - .5) * 0.25 * dpr
+    }));
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  const LINK = () => 150 * dpr;
+  function pos(n) {
+    // Deeper nodes (small z) scroll slower = parallax in the background too
+    const wrap = H + 60 * dpr;
+    const y = (((n.y - scrollY * n.z * 0.5 * dpr) % wrap) + wrap) % wrap - 30 * dpr;
+    return [n.x, y];
+  }
+
+  let lastSpawn = 0;
+  function drawNetwork(t) {
+    ctx.clearRect(0, 0, W, H);
+    const P = nodes.map(pos);
+
+    nodes.forEach(n => {
+      if (!reduceMotion) {
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0) n.x = W; if (n.x > W) n.x = 0;
+      }
+    });
+
+    // links
+    const maxD = LINK(), links = [];
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        if (Math.abs(nodes[i].z - nodes[j].z) > 0.3) continue;
+        const dx = P[i][0] - P[j][0], dy = P[i][1] - P[j][1];
+        const d = Math.hypot(dx, dy);
+        if (d < maxD) {
+          links.push([i, j]);
+          ctx.strokeStyle = `rgba(0,229,255,${(1 - d / maxD) * 0.22 * nodes[i].z})`;
+          ctx.lineWidth = dpr;
+          ctx.beginPath(); ctx.moveTo(P[i][0], P[i][1]); ctx.lineTo(P[j][0], P[j][1]); ctx.stroke();
+        }
+      }
+    }
+
+    // nodes
+    nodes.forEach((n, i) => {
+      ctx.fillStyle = `rgba(160,220,255,${0.25 + n.z * 0.55})`;
+      ctx.beginPath(); ctx.arc(P[i][0], P[i][1], (1 + n.z * 2) * dpr, 0, 6.283); ctx.fill();
+    });
+
+    // little "packets" travelling along links
+    if (!reduceMotion && t - lastSpawn > 450 && links.length && pulses.length < 14) {
+      const l = links[Math.floor(Math.random() * links.length)];
+      pulses.push({ a: l[0], b: l[1], p: 0 });
+      lastSpawn = t;
+    }
+    pulses = pulses.filter(p => p.p < 1);
+    pulses.forEach(p => {
+      p.p += 0.018;
+      const x = P[p.a][0] + (P[p.b][0] - P[p.a][0]) * p.p;
+      const y = P[p.a][1] + (P[p.b][1] - P[p.a][1]) * p.p;
+      ctx.shadowColor = '#00e5ff'; ctx.shadowBlur = 14 * dpr;
+      ctx.fillStyle = '#9ff4ff';
+      ctx.beginPath(); ctx.arc(x, y, 2.4 * dpr, 0, 6.283); ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+  }
+
+  /* ---------------- Main loop ---------------- */
+  function frame(t) {
+    updateParallax();
+    drawNetwork(t);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+</script>
+</body>
+</html>
